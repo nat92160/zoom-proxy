@@ -129,7 +129,7 @@ app.post('/create-meeting', async (req, res) => {
       return res.status(401).json({ error: 'Non autorisé' });
     }
 
-    const { title, duration, access_token } = req.body;
+    const { title, duration, access_token, start_time } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: 'Le titre est requis' });
@@ -138,26 +138,34 @@ app.post('/create-meeting', async (req, res) => {
       return res.status(400).json({ error: 'Connectez d\'abord votre compte Zoom.' });
     }
 
+    // Construire le body Zoom
+    const meetingBody = {
+      topic: title,
+      type: 2, // Scheduled meeting
+      duration: duration || 60,
+      timezone: 'Europe/Paris',
+      settings: {
+        host_video: true,
+        participant_video: false,
+        join_before_host: true,
+        mute_upon_entry: true,
+        waiting_room: false,
+        auto_recording: 'none',
+      },
+    };
+
+    // Si start_time fourni, l'ajouter (format ISO 8601)
+    if (start_time) {
+      meetingBody.start_time = start_time;
+    }
+
     const meetingRes = await fetch('https://api.zoom.us/v2/users/me/meetings', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${access_token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        topic: title,
-        type: 2,
-        duration: duration || 60,
-        timezone: 'Europe/Paris',
-        settings: {
-          host_video: true,
-          participant_video: false,
-          join_before_host: true,
-          mute_upon_entry: true,
-          waiting_room: false,
-          auto_recording: 'none',
-        },
-      }),
+      body: JSON.stringify(meetingBody),
     });
 
     const meeting = await meetingRes.json();
@@ -177,6 +185,7 @@ app.post('/create-meeting', async (req, res) => {
       meetingId: String(meeting.id),
       password: meeting.password || '',
       topic: meeting.topic,
+      start_time: meeting.start_time || null,
     });
   } catch (err) {
     console.error('Proxy error:', err);
