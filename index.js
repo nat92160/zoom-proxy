@@ -129,7 +129,7 @@ app.post('/create-meeting', async (req, res) => {
       return res.status(401).json({ error: 'Non autorisé' });
     }
 
-    const { title, duration, access_token, start_time } = req.body;
+    const { title, duration, access_token, start_time, passcode, waiting_room, use_pmi } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: 'Le titre est requis' });
@@ -141,7 +141,7 @@ app.post('/create-meeting', async (req, res) => {
     // Construire le body Zoom
     const meetingBody = {
       topic: title,
-      type: 2, // Scheduled meeting
+      type: use_pmi ? 1 : 2, // 1 = instant avec PMI, 2 = scheduled
       duration: duration || 60,
       timezone: 'Europe/Paris',
       settings: {
@@ -149,14 +149,25 @@ app.post('/create-meeting', async (req, res) => {
         participant_video: false,
         join_before_host: true,
         mute_upon_entry: true,
-        waiting_room: false,
+        waiting_room: waiting_room || false,
         auto_recording: 'none',
       },
     };
 
+    // Code secret personnalisé
+    if (passcode) {
+      meetingBody.password = passcode;
+    }
+
+    // Utiliser l'ID de réunion personnel
+    if (use_pmi) {
+      meetingBody.settings.use_pmi = true;
+    }
+
     // Si start_time fourni, l'ajouter (format ISO 8601)
     if (start_time) {
       meetingBody.start_time = start_time;
+      meetingBody.type = 2; // Toujours scheduled si date programmée
     }
 
     const meetingRes = await fetch('https://api.zoom.us/v2/users/me/meetings', {
