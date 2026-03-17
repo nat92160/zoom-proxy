@@ -157,7 +157,7 @@ app.post('/create-meeting', async (req, res) => {
       return res.status(401).json({ error: 'Non autorisé' });
     }
 
-    const { title, duration, access_token, start_time, passcode, waiting_room, use_pmi } = req.body;
+    const { title, duration, access_token, start_time, timezone, passcode, waiting_room, use_pmi } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: 'Le titre est requis' });
@@ -166,12 +166,15 @@ app.post('/create-meeting', async (req, res) => {
       return res.status(400).json({ error: 'Connectez d\'abord votre compte Zoom.' });
     }
 
+    // Fuseau horaire (par défaut Europe/Paris)
+    const tz = timezone || 'Europe/Paris';
+
     // Construire le body Zoom
     const meetingBody = {
       topic: title,
       type: use_pmi ? 1 : 2, // 1 = instant avec PMI, 2 = scheduled
       duration: duration || 60,
-      timezone: 'Europe/Paris',
+      timezone: tz,
       settings: {
         host_video: true,
         participant_video: false,
@@ -192,10 +195,17 @@ app.post('/create-meeting', async (req, res) => {
       meetingBody.settings.use_pmi = true;
     }
 
-    // Si start_time fourni, l'ajouter (format ISO 8601)
+    // Si start_time fourni, formater pour Zoom (YYYY-MM-DDTHH:mm:ss sans Z)
     if (start_time) {
-      meetingBody.start_time = start_time;
+      // Nettoyer le start_time : garder uniquement YYYY-MM-DDTHH:mm:ss
+      let cleanTime = start_time.replace('Z', '');
+      // Si format datetime-local (YYYY-MM-DDTHH:mm), ajouter :00
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(cleanTime)) {
+        cleanTime += ':00';
+      }
+      meetingBody.start_time = cleanTime;
       meetingBody.type = 2; // Toujours scheduled si date programmée
+      console.log('Scheduling meeting at:', cleanTime, 'timezone:', tz);
     }
 
     const meetingRes = await fetch('https://api.zoom.us/v2/users/me/meetings', {
