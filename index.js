@@ -33,9 +33,9 @@ app.get('/auth/zoom', (req, res) => {
   const authUrl = `https://zoom.us/oauth/authorize?response_type=code&client_id=${ZOOM_CLIENT_ID}&redirect_uri=${encodeURIComponent(ZOOM_REDIRECT_URI)}&state=${state}`;
 
   // Servir une page HTML qui :
-  // 1. Ouvre zoom.us/logout dans une popup pour déconnecter la session
-  // 2. Attend 2 secondes
-  // 3. Redirige vers la page d'autorisation OAuth
+  // 1. Déclenche le logout Zoom via des requêtes img/fetch cachées
+  // 2. Affiche un bouton pour continuer vers OAuth
+  // 3. Auto-redirige après 3 secondes
   res.send(`<!DOCTYPE html>
 <html>
 <head>
@@ -43,34 +43,46 @@ app.get('/auth/zoom', (req, res) => {
   <title>Connexion Zoom - Chabbat Chalom</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-    .container { text-align: center; padding: 40px; }
+    .container { text-align: center; padding: 40px; max-width: 400px; }
     .spinner { width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
     @keyframes spin { to { transform: rotate(360deg); } }
     h2 { margin-bottom: 10px; }
     p { opacity: 0.9; }
+    .btn { display: inline-block; margin-top: 20px; padding: 14px 32px; background: white; color: #764ba2; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; text-decoration: none; transition: transform 0.2s; }
+    .btn:hover { transform: scale(1.05); }
+    .step2 { display: none; margin-top: 20px; }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="spinner"></div>
+    <div class="spinner" id="spinner"></div>
     <h2>Connexion Zoom</h2>
-    <p>Déconnexion de la session précédente...</p>
-    <p style="font-size: 13px; opacity: 0.7;">Redirection automatique dans quelques secondes</p>
+    <p id="status">Déconnexion de votre session Zoom...</p>
+
+    <!-- Déclencheurs de logout silencieux -->
+    <img src="https://zoom.us/logout" style="display:none" />
+    <img src="https://zoom.us/signout" style="display:none" />
+
+    <div class="step2" id="step2">
+      <p>Cliquez pour vous connecter avec vos identifiants Zoom :</p>
+      <a href="${authUrl}" class="btn">Se connecter à Zoom</a>
+    </div>
   </div>
   <script>
-    // Ouvrir la page de logout Zoom dans une popup cachée
-    var logoutWin = window.open('https://zoom.us/logout', '_blank', 'width=1,height=1,left=-100,top=-100');
+    // Aussi essayer via fetch (no-cors envoie quand même les cookies)
+    try { fetch('https://zoom.us/logout', { mode: 'no-cors', credentials: 'include' }); } catch(e) {}
 
-    // Fermer la popup après 1.5s et rediriger vers OAuth
+    // Après 2.5s, montrer le bouton et rediriger automatiquement
     setTimeout(function() {
-      try { if (logoutWin) logoutWin.close(); } catch(e) {}
-      window.location.href = '${authUrl}';
-    }, 2500);
+      document.getElementById('spinner').style.display = 'none';
+      document.getElementById('status').textContent = 'Session Zoom déconnectée !';
+      document.getElementById('step2').style.display = 'block';
+    }, 2000);
 
-    // Fallback: si la popup est bloquée, rediriger quand même après 3s
+    // Auto-redirection après 3s
     setTimeout(function() {
       window.location.href = '${authUrl}';
-    }, 3500);
+    }, 3000);
   </script>
 </body>
 </html>`);
@@ -258,7 +270,7 @@ app.post('/create-meeting', async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.json({ status: 'ok', service: 'Chabbat Chalom Zoom Proxy', mode: 'OAuth par utilisateur', version: '2.2.0-force-login' });
+  res.json({ status: 'ok', service: 'Chabbat Chalom Zoom Proxy', mode: 'OAuth par utilisateur', version: '2.3.0-force-login-img' });
 });
 
 app.listen(PORT, () => {
