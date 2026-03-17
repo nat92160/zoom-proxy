@@ -32,58 +32,73 @@ app.get('/auth/zoom', (req, res) => {
   const state = encodeURIComponent(synaId);
   const authUrl = `https://zoom.us/oauth/authorize?response_type=code&client_id=${ZOOM_CLIENT_ID}&redirect_uri=${encodeURIComponent(ZOOM_REDIRECT_URI)}&state=${state}`;
 
-  // Servir une page HTML qui :
-  // 1. Déclenche le logout Zoom via des requêtes img/fetch cachées
-  // 2. Affiche un bouton pour continuer vers OAuth
-  // 3. Auto-redirige après 3 secondes
+  // Page HTML en 2 étapes :
+  // 1. L'utilisateur clique "Se déconnecter de Zoom" → ouvre zoom.us/logout dans un nouvel onglet
+  // 2. L'utilisateur revient et clique "Connecter mon Zoom" → OAuth
   res.send(`<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Connexion Zoom - Chabbat Chalom</title>
   <style>
+    * { box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-    .container { text-align: center; padding: 40px; max-width: 400px; }
-    .spinner { width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    h2 { margin-bottom: 10px; }
-    p { opacity: 0.9; }
-    .btn { display: inline-block; margin-top: 20px; padding: 14px 32px; background: white; color: #764ba2; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; text-decoration: none; transition: transform 0.2s; }
-    .btn:hover { transform: scale(1.05); }
-    .step2 { display: none; margin-top: 20px; }
+    .container { text-align: center; padding: 30px 20px; max-width: 420px; width: 100%; }
+    h2 { margin-bottom: 8px; font-size: 24px; }
+    .subtitle { opacity: 0.85; font-size: 14px; margin-bottom: 30px; }
+    .step { background: rgba(255,255,255,0.15); border-radius: 12px; padding: 20px; margin-bottom: 16px; backdrop-filter: blur(10px); }
+    .step-num { display: inline-block; width: 32px; height: 32px; line-height: 32px; border-radius: 50%; background: rgba(255,255,255,0.3); font-weight: 700; font-size: 16px; margin-bottom: 10px; }
+    .step p { margin: 8px 0 14px; font-size: 14px; opacity: 0.9; }
+    .btn { display: inline-block; padding: 12px 28px; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; text-decoration: none; transition: transform 0.2s, opacity 0.2s; }
+    .btn:hover { transform: scale(1.03); }
+    .btn-logout { background: #ff6b6b; color: white; }
+    .btn-connect { background: white; color: #764ba2; }
+    .btn-connect.disabled { opacity: 0.5; pointer-events: none; }
+    .check { display: none; color: #69db7c; font-size: 18px; margin-top: 8px; }
+    .or { font-size: 13px; opacity: 0.7; margin: 20px 0 10px; }
+    .skip { font-size: 13px; opacity: 0.6; cursor: pointer; text-decoration: underline; }
+    .skip:hover { opacity: 1; }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="spinner" id="spinner"></div>
     <h2>Connexion Zoom</h2>
-    <p id="status">Déconnexion de votre session Zoom...</p>
+    <p class="subtitle">Connectez votre compte Zoom à votre synagogue</p>
 
-    <!-- Déclencheurs de logout silencieux -->
-    <img src="https://zoom.us/logout" style="display:none" />
-    <img src="https://zoom.us/signout" style="display:none" />
-
-    <div class="step2" id="step2">
-      <p>Cliquez pour vous connecter avec vos identifiants Zoom :</p>
-      <a href="${authUrl}" class="btn">Se connecter à Zoom</a>
+    <div class="step">
+      <div class="step-num">1</div>
+      <p>D'abord, déconnectez-vous de Zoom pour pouvoir choisir votre compte :</p>
+      <a href="https://zoom.us/logout" target="_blank" class="btn btn-logout" id="logoutBtn" onclick="onLogout()">Se déconnecter de Zoom</a>
+      <div class="check" id="logoutCheck">✓ Déconnexion effectuée</div>
     </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <p>Puis connectez votre compte Zoom :</p>
+      <a href="${authUrl}" class="btn btn-connect disabled" id="connectBtn">Connecter mon Zoom</a>
+    </div>
+
+    <p class="or">— ou —</p>
+    <span class="skip" onclick="window.location.href='${authUrl}'">Passer l'étape 1 (connexion rapide)</span>
   </div>
+
   <script>
-    // Aussi essayer via fetch (no-cors envoie quand même les cookies)
-    try { fetch('https://zoom.us/logout', { mode: 'no-cors', credentials: 'include' }); } catch(e) {}
-
-    // Après 2.5s, montrer le bouton et rediriger automatiquement
-    setTimeout(function() {
-      document.getElementById('spinner').style.display = 'none';
-      document.getElementById('status').textContent = 'Session Zoom déconnectée !';
-      document.getElementById('step2').style.display = 'block';
-    }, 2000);
-
-    // Auto-redirection après 3s
-    setTimeout(function() {
-      window.location.href = '${authUrl}';
-    }, 3000);
+    function onLogout() {
+      // Après le clic sur logout, activer le bouton de connexion
+      setTimeout(function() {
+        document.getElementById('logoutCheck').style.display = 'block';
+        document.getElementById('logoutBtn').style.opacity = '0.5';
+        document.getElementById('logoutBtn').textContent = 'Déconnexion faite ✓';
+        var cb = document.getElementById('connectBtn');
+        cb.classList.remove('disabled');
+        cb.style.animation = 'pulse 1s ease-in-out infinite';
+      }, 1000);
+    }
   </script>
+  <style>
+    @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+  </style>
 </body>
 </html>`);
 });
@@ -270,7 +285,7 @@ app.post('/create-meeting', async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.json({ status: 'ok', service: 'Chabbat Chalom Zoom Proxy', mode: 'OAuth par utilisateur', version: '2.3.0-force-login-img' });
+  res.json({ status: 'ok', service: 'Chabbat Chalom Zoom Proxy', mode: 'OAuth par utilisateur', version: '2.4.0-two-step-login' });
 });
 
 app.listen(PORT, () => {
