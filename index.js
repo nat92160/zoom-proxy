@@ -29,7 +29,7 @@ app.get('/auth/zoom', (req, res) => {
   if (!synaId) return res.status(400).json({ error: 'synaId requis' });
 
   const state = encodeURIComponent(synaId);
-  const authUrl = `https://zoom.us/oauth/authorize?response_type=code&client_id=${ZOOM_CLIENT_ID}&redirect_uri=${encodeURIComponent(ZOOM_REDIRECT_URI)}&state=${state}`;
+  const authUrl = `https://zoom.us/oauth/authorize?response_type=code&client_id=${ZOOM_CLIENT_ID}&redirect_uri=${encodeURIComponent(ZOOM_REDIRECT_URI)}&state=${state}&prompt=login`;
   res.redirect(authUrl);
 });
 
