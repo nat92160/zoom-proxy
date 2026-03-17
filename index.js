@@ -24,41 +24,24 @@ app.use(express.json());
 // ÉTAPE 1 : Rediriger vers Zoom OAuth
 // Le président clique "Connecter mon Zoom"
 // =============================================
+// Étape 1 : Rediriger vers Zoom signout, puis vers notre page d'auth
 app.get('/auth/zoom', (req, res) => {
+  const { synaId } = req.query;
+  if (!synaId) return res.status(400).json({ error: 'synaId requis' });
+
+  // Rediriger d'abord vers Zoom signout, qui redirigera vers notre étape 2
+  const step2Url = `${req.protocol}://${req.get('host')}/auth/zoom-step2?synaId=${encodeURIComponent(synaId)}`;
+  res.redirect(`https://zoom.us/signout?redirect=${encodeURIComponent(step2Url)}`);
+});
+
+// Étape 1b : Si Zoom signout ne supporte pas redirect, page intermédiaire
+app.get('/auth/zoom-step2', (req, res) => {
   const { synaId } = req.query;
   if (!synaId) return res.status(400).json({ error: 'synaId requis' });
 
   const state = encodeURIComponent(synaId);
   const authUrl = `https://zoom.us/oauth/authorize?response_type=code&client_id=${ZOOM_CLIENT_ID}&redirect_uri=${encodeURIComponent(ZOOM_REDIRECT_URI)}&state=${state}`;
-
-  // Page intermédiaire : déconnecter Zoom d'abord, puis rediriger vers OAuth
-  res.send(`<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Connexion Zoom</title>
-<style>
-  body { background:#0b1426; color:#fff; font-family:system-ui,sans-serif; display:flex; align-items:center; justify-content:center; height:100vh; margin:0; text-align:center; }
-  .box { padding:30px; }
-  .spinner { width:40px; height:40px; border:3px solid rgba(255,255,255,0.1); border-top-color:#2D8CFF; border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 20px; }
-  @keyframes spin { to { transform:rotate(360deg); } }
-</style>
-</head><body>
-<div class="box">
-  <div class="spinner"></div>
-  <p style="font-size:1.1rem;margin-bottom:8px">Connexion à Zoom...</p>
-  <p style="font-size:0.85rem;color:rgba(255,255,255,0.5)">Déconnexion de la session précédente</p>
-</div>
-<img src="https://zoom.us/signout" style="display:none" onerror="proceed()" onload="proceed()">
-<script>
-  var done = false;
-  function proceed() {
-    if (done) return;
-    done = true;
-    window.location.href = "${authUrl}";
-  }
-  // Fallback : rediriger après 2 secondes max
-  setTimeout(proceed, 2000);
-</script>
-</body></html>`);
+  res.redirect(authUrl);
 });
 
 // =============================================
