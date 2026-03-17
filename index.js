@@ -243,7 +243,7 @@ app.post('/create-meeting', async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.json({ status: 'ok', service: 'Chabbat Chalom Zoom Proxy', mode: 'OAuth par utilisateur' });
+  res.json({ status: 'ok', service: 'Chabbat Chalom Zoom Proxy', mode: 'OAuth par utilisateur', version: '2.1.0-tz-fix' });
 });
 
 app.listen(PORT, () => {
