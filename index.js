@@ -24,24 +24,56 @@ app.use(express.json());
 // ÉTAPE 1 : Rediriger vers Zoom OAuth
 // Le président clique "Connecter mon Zoom"
 // =============================================
-// Étape 1 : Rediriger vers Zoom signout, puis vers notre page d'auth
+// Étape 1 : Page intermédiaire qui déconnecte Zoom puis redirige vers OAuth
 app.get('/auth/zoom', (req, res) => {
-  const { synaId } = req.query;
-  if (!synaId) return res.status(400).json({ error: 'synaId requis' });
-
-  // Rediriger d'abord vers Zoom signout, qui redirigera vers notre étape 2
-  const step2Url = `${req.protocol}://${req.get('host')}/auth/zoom-step2?synaId=${encodeURIComponent(synaId)}`;
-  res.redirect(`https://zoom.us/signout?redirect=${encodeURIComponent(step2Url)}`);
-});
-
-// Étape 1b : Si Zoom signout ne supporte pas redirect, page intermédiaire
-app.get('/auth/zoom-step2', (req, res) => {
   const { synaId } = req.query;
   if (!synaId) return res.status(400).json({ error: 'synaId requis' });
 
   const state = encodeURIComponent(synaId);
   const authUrl = `https://zoom.us/oauth/authorize?response_type=code&client_id=${ZOOM_CLIENT_ID}&redirect_uri=${encodeURIComponent(ZOOM_REDIRECT_URI)}&state=${state}`;
-  res.redirect(authUrl);
+
+  // Servir une page HTML qui :
+  // 1. Ouvre zoom.us/logout dans une popup pour déconnecter la session
+  // 2. Attend 2 secondes
+  // 3. Redirige vers la page d'autorisation OAuth
+  res.send(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Connexion Zoom - Chabbat Chalom</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+    .container { text-align: center; padding: 40px; }
+    .spinner { width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    h2 { margin-bottom: 10px; }
+    p { opacity: 0.9; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="spinner"></div>
+    <h2>Connexion Zoom</h2>
+    <p>Déconnexion de la session précédente...</p>
+    <p style="font-size: 13px; opacity: 0.7;">Redirection automatique dans quelques secondes</p>
+  </div>
+  <script>
+    // Ouvrir la page de logout Zoom dans une popup cachée
+    var logoutWin = window.open('https://zoom.us/logout', '_blank', 'width=1,height=1,left=-100,top=-100');
+
+    // Fermer la popup après 1.5s et rediriger vers OAuth
+    setTimeout(function() {
+      try { if (logoutWin) logoutWin.close(); } catch(e) {}
+      window.location.href = '${authUrl}';
+    }, 2500);
+
+    // Fallback: si la popup est bloquée, rediriger quand même après 3s
+    setTimeout(function() {
+      window.location.href = '${authUrl}';
+    }, 3500);
+  </script>
+</body>
+</html>`);
 });
 
 // =============================================
@@ -226,7 +258,7 @@ app.post('/create-meeting', async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.json({ status: 'ok', service: 'Chabbat Chalom Zoom Proxy', mode: 'OAuth par utilisateur', version: '2.1.0-tz-fix' });
+  res.json({ status: 'ok', service: 'Chabbat Chalom Zoom Proxy', mode: 'OAuth par utilisateur', version: '2.2.0-force-login' });
 });
 
 app.listen(PORT, () => {
